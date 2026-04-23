@@ -118,3 +118,23 @@ But remember the above 2 functions are the only functions that will be called by
 '''
 
 # TODO: Your functions. (if needed)
+
+def _to_hwc_uint8(img: torch.Tensor) -> torch.Tensor:
+    if img.dim() != 3:
+        raise RuntimeError("Input image must be a 3D torch.Tensor")
+    # CHW -> HWC
+    if img.shape[0] == 3 and img.shape[-1] != 3:
+        img_hwc = img.permute(1, 2, 0)
+    else:
+        img_hwc = img
+    
+    if img_hwc.dtype != torch.uint8:
+        img_hwc = img_hwc.clamp(0, 255).to(torch.uint8)
+    
+    return img_hwc
+
+def _flip_channels_hwc(img_hwc: torch.Tensor) -> torch.Tensor:
+
+    #RGB <-> BGR for HWC images
+
+    return torch.flip(img_hwc, dims=[2]).contiguous()
