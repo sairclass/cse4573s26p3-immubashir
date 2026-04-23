@@ -87,7 +87,28 @@ def cluster_faces(imgs: Dict[str, torch.Tensor], K: int) -> List[List[str]]:
     cluster_results: List[List[str]] = [[] for _ in range(K)] # Please make sure your output follows this data format.
         
     ##### YOUR IMPLEMENTATION STARTS HERE #####
-    
+
+    img_names = sorted(list(imgs.keys()))
+    features = []
+
+    # Extracting feature embeddings for each image.
+    for img_name in img_names:
+        feature = _extract_face_embedding(imgs[img_name])
+        features.append(feature)
+
+    # Stacking all embeddings into a feature matrix.
+    X = torch.stack(features, dim = 0)
+
+    # Normalizing embeddings to unit length for stable clustering.
+    X = _l2_normalize(X)
+
+    # Applying K-means clustering to group similar faces.
+    labels = _kmeans_torch(X, K)
+
+    # Assigning images to clusters based on predicted labels.
+    for img_name, label in zip(img_names, labels.tolist()):
+        cluster_results[int(label)].append(img_name)
+
     return cluster_results
 
 
