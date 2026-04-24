@@ -250,3 +250,67 @@ def _l2_normalize(x: torch.Tensor) -> torch.Tensor:
     # Normalizing each embedding vector to unit length.
     norms = torch.sqrt(torch.sum(x * x, dim = 1, keepdim=True) +1e-12)
     return x / norms
+
+def _init_centers_farthest_first(X: torch.Tensor, K:int) -> torch.Tensor:
+    N, D = X.shape
+    centers = torch.zeros((K, D), dtype=X.dtype)
+
+    # Initializing cluster centers using farthest-first strategy.
+    first_idx = torch.argmax(torch.sum(X * X, dim=1))
+    centers[0] = X[first_idx]
+
+    min_dist2 = torch.sum((X - centers[0]) * (X - centers[0]), dim=1)
+
+    for k in range(1, K):
+        next_idx = torch.argmax(min_dist2)
+        centers[k] = X[next_idx]
+        dist2 = torch.sum((X - centers[k]) * (X - centers[k]), dim=1)
+        min_dist2 = torch.minimum(min_dist2, dist2)
+
+    return centers
+
+def _kmeans_torch(X: torch.Tensor, K: int, max_iter: int=100) -> torch.Tensor:
+
+    N = X.shape[0]
+
+    if K <= 0:
+        raise RuntimeError("K must be positive")
+    if N == 0:
+        raise RuntimeError("No input provided")
+    if K > N:
+        K = N
+    
+    centers = _init_centers_farthest_first(X, K)
+    prev_labels = None
+
+    for _ in range(max_iter):
+
+        # Assigning each point to the nearest cluster center.
+        dists = torch.cdist(X, centers, p=2)
+        labels = torch.argmin(dists, dim=1)
+
+        # Stopping early if cluster assignments converge.
+        if prev_labels is not None and torch.equal(labels, prev_labels):
+            break
+        
+        new_centers = centers.clone()
+
+        min_dists, _ = torch.min(dists, dim=1)
+
+        for k in range(K):
+            mask = (labels == k)
+
+            # Updating cluster centers based on assigned points.
+            if torch.any(mask):
+                new_centers[k] = torch.mean(X[mask], dim=0)
+            
+            # Reinitializing empty clusters with farthest points to avoid collapsing.
+            else:
+                farthest_idx = torch.argmax(min_dists)
+                new_centers[k] = X[farthest_idx]
+        centers = new_centers
+        prev_labels = labels.clone()
+    
+    final_dists = torch.cdist(X, centers, p=2)
+    final_labels = torch.argmin(final_dists, dim=1)
+    return final_labels
