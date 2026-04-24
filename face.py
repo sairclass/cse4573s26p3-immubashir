@@ -162,3 +162,32 @@ def _detect_face_locations(img_hwc: torch.Tensor):
             best_area = area
 
     return best_locations
+
+def _total_box_area(locations) -> float:
+    total = 0.0
+
+    # Computing total area covered by detected bounding boxes
+    for (top, right, bottom, left) in locations:
+        w = max(0, right - left)
+        h = max(0, bottom - top)
+        total += float(w * h)
+    return total
+
+def _locations_to_xywh(locations, H: int, W: int) -> List[List[float]]:
+    results: List[List[float]] = []
+    
+    # Clipping each detected box to image boundaries and converting it to the required output format.
+    for(top, right, bottom, left) in locations:
+        left = max(0, min(int(left), W - 1))
+        top = max(0, min(int(top), H - 1))
+        right = max(left+1, min(int(right), W))
+        bottom = max(top+1, min(int(bottom), H))
+
+        x = float(left)
+        y = float(top)
+        w = float(right-left)
+        h = float(bottom-top)
+
+        results.append([x, y, w, h])
+    
+    return results
