@@ -138,3 +138,27 @@ def _flip_channels_hwc(img_hwc: torch.Tensor) -> torch.Tensor:
     #RGB <-> BGR for HWC images
 
     return torch.flip(img_hwc, dims=[2]).contiguous()
+
+def _detect_face_locations(img_hwc: torch.Tensor):
+    img_np = img_hwc.numpy()
+
+    best_locations = []
+    best_area = -1.0
+
+    # Running multi-scale face detection using different upsample values
+    for upsample in [0, 1, 2]:
+        try:
+            locations = face_recognition.face_locations(
+                img_np,
+                number_of_times_to_upsample = upsample,
+                model="hog"
+            )
+        except Exception:
+            locations = []
+        
+        area = _total_box_area(locations)
+        if len(locations) > len(best_locations) or (len(locations) == len(best_locations) and area > best_area) :
+            best_locations = locations
+            best_area = area
+
+    return best_locations
