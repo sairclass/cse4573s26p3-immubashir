@@ -191,3 +191,62 @@ def _locations_to_xywh(locations, H: int, W: int) -> List[List[float]]:
         results.append([x, y, w, h])
     
     return results
+
+def _extract_face_embedding(img: torch.Tensor) -> torch.Tensor:
+    img_hwc = _to_hwc_uint8(img)
+    candidates = [img_hwc, _flip_channels_hwc(img_hwc)]
+
+    best_embedding = None
+    best_area = -1.0
+
+    # Generating face embeddings using face_recognition encodings.
+    for candidate in candidates:
+        img_np = candidate.numpy()
+        locations = _detect_face_locations(candidate)
+
+        if len(locations) == 0:
+            try:
+                encodings = face_recognition.face_encodings(img_np)
+            except Exception:
+                encodings = []
+            
+            if len(encodings) > 0:
+                emb = torch.tensor(encodings[0], dtype = torch.float32)
+                return emb
+            continue
+
+        indexed = []
+
+        # Selecting the embedding corresponding to the largest detected face.
+        for loc in locations:
+            top, right, bottom, left = loc
+            area = float(max(0, right - left) * max(0, bottom-top))
+            indexed.append((area, loc))
+        indexed.sort(key = lambda x: x[0], reverse = True)
+
+        sorted_locations = [item[1] for item in indexed]
+
+        try:
+            encodings = face_recognition.face_encodings(
+                img_np,
+                known_face_locations=sorted_locations
+            )
+        except Exception:
+            encodings = []
+        
+        for i, enc in enumerate(encodings):
+            area = indexed[i][0]
+            if area > best_area:
+                best_area = area
+                best_embedding = torch.tensor(enc, dtype=torch.float32)
+                
+    if best_embedding is None:
+        best_embedding = torch.zeros(128, dtype=torch.float32)
+    
+    return best_embedding
+
+def _l2_normalize(x: torch.Tensor) -> torch.Tensor:
+
+    # Normalizing each embedding vector to unit length.
+    norms = torch.sqrt(torch.sum(x * x, dim = 1, keepdim=True) +1e-12)
+    return x / norms
